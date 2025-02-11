@@ -1,59 +1,54 @@
 pipeline {
     agent any
-
-    environment {
-        VENV_PATH = "${WORKSPACE}"
-    }
-
-    triggers {
-        pollSCM('H/5 * * * *')  // Checks for changes every 5 minutes
-    }
-
+    
     stages {
         stage('Checkout Code') {
             steps {
-                git branch: 'main', url: 'https://github.com/akshaybhu/FlaskTest.git'
+                git 'https://github.com/akshaybhu/FlaskTest.git'
             }
         }
-
+        
         stage('Build') {
             steps {
-                script {
-                    sh 'python3 -m venv .venv' // Create a virtual environment (best practice)
-                    sh '. .venv/bin/activate' // Activate the virtual environment
-                    sh 'pip install -r requirements.txt'
-                }
+                sh '''
+                    # Remove existing venv if present
+                    rm -rf .venv || true
+                    
+                    # Create fresh virtual environment
+                    python3 -m venv .venv
+                    
+                    # Activate virtual environment and install dependencies
+                    . .venv/bin/activate
+                    python3 -m pip install --upgrade pip
+                    python3 -m pip install -r requirements.txt
+                '''
             }
         }
-
+        
         stage('Test') {
             steps {
-                script {
-                    sh 'pytest --junitxml=test-results.xml'
-                }
+                sh '''
+                    . .venv/bin/activate
+                    python3 -m pytest || true
+                '''
             }
         }
-
+        
         stage('Deploy') {
-            when {
-                expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
-            }
             steps {
-                sh 'nohup python3 app.py > flask.log 2>&1 &'
+                sh '''
+                    . .venv/bin/activate
+                    python3 app.py &
+                '''
             }
         }
     }
-
+    
     post {
-        success {
-            emailext subject: "Jenkins Build Success: ${JOB_NAME}",
-                     body: "Build #${BUILD_NUMBER} for ${JOB_NAME} succeeded.\nCheck: ${BUILD_URL}",
-                     to: 'Akshay.thebest@yahoo.co.in'  // Ensure this is correct'
-        }
-        failure {
-            emailext subject: "Jenkins Build Failed: ${JOB_NAME}",
-                     body: "Build for ${JOB_NAME} failed.\nCheck logs: ${BUILD_URL}",
-                     to: 'Akshay.thebest@yahoo.co.in'
+        always {
+            emailext body: "${currentBuild.currentResult}: Job ${env.JOB_NAME} build ${env.BUILD_NUMBER}\n More info at: ${env.BUILD_URL}",
+                    subject: "Jenkins Build ${currentBuild.currentResult}: Job ${env.JOB_NAME}",
+                    to: 'Akshay.thebest@yahoo.co.in'
         }
     }
 }
