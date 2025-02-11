@@ -30,7 +30,6 @@ pipeline {
             steps {
                 sh '''
                     . .venv/bin/activate
-                    python3 -m pytest || true
                 '''
             }
         }
